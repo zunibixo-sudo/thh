@@ -64,7 +64,32 @@ let dbData = {
 if(fs.existsSync(DB_PATH)){
   try{ dbData = JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); }catch(e){ console.log("DB corrupted, fresh"); }
 }
-function saveDB(){ fs.writeFileSync(DB_PATH, JSON.stringify(dbData, null, 2)); }
+// Create sample manual services if none exist (so New Order never shows "No services in this category")
+if(!dbData.manual_services || dbData.manual_services.length===0){
+  dbData.manual_services = [
+    {id:90001, name:"Facebook Page Likes", category:"Facebook", rate_inr:80, min:100, max:10000, description:"Facebook Page Likes - Manual - High Quality"},
+    {id:90002, name:"Facebook Post Likes", category:"Facebook", rate_inr:70, min:100, max:10000, description:"Facebook Post Likes"},
+    {id:90003, name:"Instagram Followers", category:"Instagram", rate_inr:100, min:100, max:10000, description:"Instagram Followers Manual"},
+    {id:90004, name:"Instagram Likes", category:"Instagram", rate_inr:80, min:100, max:10000, description:"Instagram Likes"},
+    {id:90005, name:"YouTube Subscribers", category:"YouTube", rate_inr:150, min:100, max:5000, description:"YouTube Subs"},
+    {id:90006, name:"YouTube Views", category:"YouTube", rate_inr:50, min:1000, max:100000, description:"YouTube Views"},
+    {id:90007, name:"TikTok Followers", category:"TikTok", rate_inr:90, min:100, max:10000, description:"TikTok Followers"},
+    {id:90008, name:"Telegram Members", category:"Telegram", rate_inr:60, min:100, max:10000, description:"Telegram Members"},
+    {id:90009, name:"Twitter Followers", category:"Twitter (X)", rate_inr:85, min:100, max:10000, description:"Twitter Followers"},
+    {id:90010, name:"Custom Service", category:"Others", rate_inr:100, min:10, max:10000, description:"Custom Manual Service"}
+  ];
+}
+// Ensure categories include Facebook, Instagram, YouTube, Telegram, Twitter (X), TikTok, Others
+const defaultCats=["Facebook","Instagram","YouTube","Telegram","Twitter (X)","TikTok","Others"];
+let existingCats=dbData.settings.categories || [];
+defaultCats.forEach(catName=>{
+  if(!existingCats.find(c=>c.name===catName)){
+    existingCats.push({name:catName, enabled:true});
+  }
+});
+dbData.settings.categories=existingCats;
+saveDB();
+function saveDB(){ try{ fs.writeFileSync(DB_PATH, JSON.stringify(dbData, null, 2)); }catch(e){ console.error("DB save error", e.message); } }
 
 function getUser(id){ return dbData.users.find(u=>u.id===id); }
 function ensureUser(msg, referrerId=null){
@@ -950,7 +975,7 @@ bot.on('callback_query', async (cq)=>{
 
   // Admin callbacks
   if(!isAdmin(uid)) return;
-  if(data==='adm_apibal'){ try{ const r=await smmPost({action:'balance'}); bot.sendMessage(uid, `API Bal: ${r.balance} ${r.currency||'INR'}`);}catch(e){ bot.sendMessage(uid, `❌ API Fail: ${e.message}\nIf URL contains totocompamy.com, it's WRONG! Set real provider URL via Manage API`); } }
+  if(data==='adm_apibal'){ try{ const r=await smmPost({action:'balance'}); bot.sendMessage(uid, `✅ API Balance Working!\n💰 Balance: ${r.balance} ${r.currency||'USD'}\nURL: ${getSetting('api_url', API_URL)}\n\nIf Invalid API Key error, go to https://totocompamy.com -> API page -> Copy correct API Key and update .env file then Restart App`);}catch(e){ bot.sendMessage(uid, `❌ API Balance Fail: ${e.message}\n\nFix for https://totocompamy.com/api/v2:\n1. Go to https://totocompamy.com -> Login -> API page -> Copy API Key\n2. In .env set API_KEY=your_key and in cPanel Environment Variables\n3. Restart App\n4. Test API again`); } }
   if(data==='adm_addbal'){ state.set(uid,{step:'admin_addbal'}); bot.sendMessage(uid, "Send: `userId amount currency`\nEx: 7481724731 100 BDT", {parse_mode:"Markdown", reply_markup:{keyboard:[[{text:"❌ Cancel"}]], resize_keyboard:true}}); }
   if(data==='adm_search'){ state.set(uid,{step:'admin_search_user'}); bot.sendMessage(uid, tr(uid,'search_user_prompt'), {reply_markup:{keyboard:[[{text:"❌ Cancel"}]], resize_keyboard:true}}); }
   if(data==='adm_rates'){ const rates=getConversionRates(); state.set(uid,{step:'admin_set_rates'}); bot.sendMessage(uid, `Current Hidden Rates:\n1 INR=${rates.BDT} BDT / ${rates.USD} USD\n\nSend BDT_rate USD_rate\nEx: 1.35 0.012`, {reply_markup:{keyboard:[[{text:"❌ Cancel"}]], resize_keyboard:true}}); }
